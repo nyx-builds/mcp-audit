@@ -11,7 +11,7 @@ from .server import MCPServer
 
 
 @click.group()
-@click.version_option(version="0.1.0")
+@click.version_option(version="0.2.0")
 def cli() -> None:
     """mcp-audit — observability for AI agent tool calls."""
 
@@ -80,6 +80,13 @@ def serve() -> None:
         "tool_count": server.tool_count,
     }
     click.echo(json.dumps(config, indent=2))
+
+
+@cli.command()
+def stdio() -> None:
+    """Run the MCP server on stdio transport (for MCP clients)."""
+    from .transport import run_stdio
+    run_stdio()
 
 
 if __name__ == "__main__":

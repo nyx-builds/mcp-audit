@@ -12,8 +12,9 @@ from .models import (
     TraceEvent,
 )
 from .tracer import traced_call
+from .transport import create_fastmcp_server, run_stdio
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "AuditEngine",
@@ -25,5 +26,7 @@ __all__ = [
     "Session",
     "AlertRule",
     "AgentReport",
+    "create_fastmcp_server",
+    "run_stdio",
     "__version__",
 ]

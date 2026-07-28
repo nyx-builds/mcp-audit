@@ -78,13 +78,27 @@ Add to your MCP client config (Claude Desktop, Cursor, etc.):
   "mcpServers": {
     "mcp-audit": {
       "command": "mcp-audit",
-      "args": ["serve"]
+      "args": ["stdio"]
     }
   }
 }
 ```
 
-Your agent can now call audit tools like `record_call`, `get_stats`, `create_alert_rule`, and `evaluate_alerts`.
+This runs mcp-audit as a real MCP server over stdio transport. Your agent can now call audit tools like `record_call`, `get_stats`, `create_alert_rule`, and `evaluate_alerts` directly through the MCP protocol.
+
+> **Note:** Use `mcp-audit stdio` (not `mcp-audit serve`). The `serve` command prints configuration JSON for reference; `stdio` runs the actual MCP stdio transport.
+
+### Use as a Python library with FastMCP
+
+For programmatic integration:
+
+```python
+from mcp_audit import create_fastmcp_server
+
+# Get a FastMCP instance with all 17 tools registered
+server = create_fastmcp_server()
+server.run(transport="stdio")
+```
 
 ## MCP Tools (17)
 
