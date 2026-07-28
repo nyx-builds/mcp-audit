@@ -219,6 +219,47 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Tool Health ──
+    {
+        "name": "get_tool_health",
+        "description": "Get per-tool health metrics: call count, error rate, p95 latency, cost for each tool. Sorted by usage (most-called first).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+            },
+        },
+    },
+    {
+        "name": "get_recent_calls",
+        "description": "Get the N most recent tool calls (newest first). Quick way to see what the agent just did.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "n": {"type": "integer", "default": 10, "description": "Number of recent calls to return"},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+            },
+        },
+    },
+    # ── Export ──
+    {
+        "name": "export_calls",
+        "description": "Export tool calls to JSONL or CSV format. Writes to a file path and returns metadata (path, count, size).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "format": {"type": "string", "enum": ["jsonl", "csv"], "default": "jsonl"},
+                "output_path": {"type": "string", "description": "File path to write to"},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+            "required": ["format", "output_path"],
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
@@ -398,6 +439,42 @@ class MCPServer:
             "active_rules": len(active_rules),
             "unique_tools": stats["unique_tools"],
         }
+
+    def _tool_get_tool_health(self, args: dict) -> dict:
+        health = self.engine.get_tool_health(**_filter_args(args))
+        return {
+            "tool_count": len(health),
+            "tools": health,
+        }
+
+    def _tool_get_recent_calls(self, args: dict) -> dict:
+        calls = self.engine.get_recent_calls(
+            n=args.get("n", 10),
+            session_id=args.get("session_id"),
+            agent_id=args.get("agent_id"),
+        )
+        return {
+            "count": len(calls),
+            "calls": [self._serialize_call(c) for c in calls],
+        }
+
+    def _tool_export_calls(self, args: dict) -> dict:
+        from ..export import export_calls_jsonl, export_calls_csv
+
+        fmt = args.get("format", "jsonl")
+        output_path = args["output_path"]
+        kwargs = {
+            "session_id": args.get("session_id"),
+            "agent_id": args.get("agent_id"),
+            "tool_name": args.get("tool_name"),
+            "limit": args.get("limit", 10_000),
+        }
+        if fmt == "jsonl":
+            return export_calls_jsonl(self.engine, output_path, **kwargs)
+        elif fmt == "csv":
+            return export_calls_csv(self.engine, output_path, **kwargs)
+        else:
+            return {"error": f"Unknown format: {fmt}. Use 'jsonl' or 'csv'."}
 
     # ── Serializers ────────────────────────────────────────────────
 

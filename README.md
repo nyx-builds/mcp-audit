@@ -8,8 +8,8 @@
 <p align="center">
   <a href="https://github.com/nyx-builds/mcp-audit/actions"><img src="https://github.com/nyx-builds/mcp-audit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/MCP-tools-17-green.svg" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/tests-passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-tools-20-green.svg" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/tests-263-passing-brightgreen.svg" alt="Tests">
 </p>
 
 ---
@@ -36,6 +36,10 @@ AI agents are increasingly autonomous, calling dozens of tools per session. But 
 - 💰 **Cost Breakdown** — see exactly which tools are consuming budget, grouped by tool/server/session
 - 🚨 **Alert Rules** — set thresholds (e.g. "alert if error_rate > 50%" or "alert if total_cost > $10")
 - 📝 **Trace Events** — fine-grained structured logging within calls (sub-steps, HTTP requests, DB queries)
+- 📊 **Tool Health Dashboard** — per-tool metrics at a glance (error rate, p95 latency, cost)
+- 💾 **SQLite Persistence** — durable storage that survives restarts (drop-in replacement for memory store)
+- 🎯 **Auto-Instrumentation** — `@audit_call` decorator for zero-code tracing of any Python function
+- 📤 **Data Export** — JSONL & CSV export for feeding data to Grafana, Datadog, Splunk, ELK
 - 🏷️ **Agent Reports** — comprehensive per-agent performance summaries
 - 🪝 **Context Manager** — Python `with` block for automatic call tracing
 
@@ -100,7 +104,7 @@ server = create_fastmcp_server()
 server.run(transport="stdio")
 ```
 
-## MCP Tools (17)
+## MCP Tools (20)
 
 | Tool | Description |
 |------|-------------|
@@ -120,7 +124,79 @@ server.run(transport="stdio")
 | `list_alert_rules` | List configured alert rules |
 | `delete_alert_rule` | Remove an alert rule |
 | `evaluate_alerts` | Check which alert rules are currently breached |
+| `get_tool_health` | Per-tool health metrics (error rate, p95, cost) |
+| `get_recent_calls` | Get the N most recent tool calls |
+| `export_calls` | Export calls to JSONL or CSV file |
 | `get_audit_summary` | High-level dashboard summary |
+
+## SQLite Persistence
+
+For production use, persist audit data across restarts with the SQLite backend:
+
+```python
+from mcp_audit import AuditEngine
+from mcp_audit.sqlite_store import SQLiteStore
+
+store = SQLiteStore("audit.db")  # persists to disk
+engine = AuditEngine(store=store)
+
+# All calls, sessions, events, and rules now survive process restarts
+session = engine.start_session(agent_id="prod-agent")
+```
+
+SQLiteStore is a drop-in replacement for the default MemoryStore — same interface, durable storage. Uses indexed columns for efficient querying on session_id, agent_id, tool_name, status, and timestamps.
+
+## Auto-Instrumentation with @audit_call
+
+Skip manual tracing — decorate any function and it's automatically audited:
+
+```python
+from mcp_audit import AuditEngine
+from mcp_audit.decorator import audit_call, bind_session
+
+engine = AuditEngine()
+session = engine.start_session(agent_id="my-agent")
+
+# Option 1: explicit engine + session
+@audit_call(engine, session_id=session.id, cost_fn=lambda *_: 0.001)
+def search(query: str) -> list:
+    return [{"title": "result"}]
+
+# Option 2: bind once, decorate everywhere
+ctx = bind_session(engine, session.id)
+
+@audit_call()  # uses bound engine + session
+def fetch(url: str) -> dict:
+    return requests.get(url).json()
+
+@audit_call(tool_name="llm_complete", cost_fn=compute_cost)
+def complete(prompt: str) -> str:
+    return llm.generate(prompt)
+
+ctx.reset()  # unbind when done
+```
+
+Every call is automatically recorded with timing, status, and errors. Exceptions are recorded as errors and re-raised.
+
+## Data Export
+
+Export audit data for external tools:
+
+```python
+from mcp_audit.export import export_calls_jsonl, export_calls_csv
+
+# JSONL for log shippers (Datadog, Splunk, ELK)
+export_calls_jsonl(engine, "audit.jsonl", session_id=sid)
+
+# CSV for spreadsheet analysis
+export_calls_csv(engine, "costs.csv", agent_id="prod-agent")
+
+# Or export to a string
+from mcp_audit.export import export_to_string
+text = export_to_string(engine, fmt="jsonl", limit=100)
+```
+
+Or call the `export_calls` MCP tool directly from your agent.
 
 ## Alert Rules
 

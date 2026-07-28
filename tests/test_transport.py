@@ -49,12 +49,12 @@ class TestCreateFastMCPServer:
 
 class TestToolRegistration:
     @pytest.mark.asyncio
-    async def test_all_17_tools_registered(self):
-        """All 17 tool definitions should be registered on the FastMCP server."""
+    async def test_all_tools_registered(self):
+        """All tool definitions should be registered on the FastMCP server."""
         server = create_fastmcp_server()
         tools = await server.list_tools()
         tool_names = {t.name for t in tools}
-        assert len(tool_names) == 17
+        assert len(tool_names) == 20
 
     @pytest.mark.asyncio
     async def test_expected_tool_names(self):
@@ -68,6 +68,7 @@ class TestToolRegistration:
             "get_stats", "get_agent_report", "get_cost_breakdown",
             "create_alert_rule", "list_alert_rules", "delete_alert_rule",
             "evaluate_alerts", "get_audit_summary",
+            "get_tool_health", "get_recent_calls", "export_calls",
         }
         assert names == expected
 

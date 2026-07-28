@@ -395,6 +395,68 @@ class AuditEngine:
                 )
         return triggered
 
+    # ── Recent calls / health ────────────────────────────────────────
+
+    def get_recent_calls(
+        self,
+        n: int = 10,
+        *,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[ToolCall]:
+        """Get the N most recent calls (newest first)."""
+        return self.store.query_calls(
+            session_id=session_id,
+            agent_id=agent_id,
+            limit=n,
+        )
+
+    def get_tool_health(
+        self,
+        *,
+        session_id: str | None = None,
+        agent_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Per-tool health metrics: call count, error rate, avg/p95 latency, cost.
+
+        Returns a list sorted by call count descending — the most-used tools
+        first.  This is the at-a-glance view for "which tools are healthy?"
+        """
+        calls = self.store.query_calls(
+            session_id=session_id,
+            agent_id=agent_id,
+            limit=100_000,
+        )
+        if not calls:
+            return []
+
+        # Group by tool_name
+        by_tool: dict[str, list[ToolCall]] = {}
+        for c in calls:
+            by_tool.setdefault(c.tool_name, []).append(c)
+
+        results: list[dict[str, Any]] = []
+        for name, tool_calls in by_tool.items():
+            total = len(tool_calls)
+            errors = sum(1 for c in tool_calls if c.status == CallStatus.ERROR)
+            timeouts = sum(1 for c in tool_calls if c.status == CallStatus.TIMEOUT)
+            durations = [c.duration_ms or 0.0 for c in tool_calls]
+            costs = [c.cost_usd for c in tool_calls]
+            results.append({
+                "tool_name": name,
+                "call_count": total,
+                "error_count": errors,
+                "timeout_count": timeouts,
+                "error_rate": round(errors / total * 100, 2) if total else 0.0,
+                "avg_latency_ms": round(sum(durations) / total, 2) if total else 0.0,
+                "p95_latency_ms": round(self._percentile(durations, 95), 2),
+                "total_cost_usd": round(sum(costs), 6),
+                "avg_cost_usd": round(sum(costs) / total, 6) if total else 0.0,
+            })
+
+        results.sort(key=lambda x: x["call_count"], reverse=True)
+        return results
+
     # ── helpers ─────────────────────────────────────────────────────
 
     @staticmethod

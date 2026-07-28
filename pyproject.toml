@@ -1,14 +1,14 @@
 [project]
 name = "mcp-audit"
-version = "0.2.0"
-description = "Audit, trace, and observe MCP tool calls. The observability MCP server for AI agents — 17 tools for logging calls, tracking costs, measuring performance, and alerting on anomalies."
+version = "0.3.0"
+description = "Audit, trace, and observe MCP tool calls. The observability MCP server for AI agents — 20 tools for logging calls, tracking costs, measuring performance, alerting, SQLite persistence, auto-instrumentation, and data export."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
     { name = "Nyx", email = "nyx@nyx-builds.github.io" },
 ]
-keywords = ["mcp", "observability", "audit", "ai-agents", "tracing", "monitoring", "cost-tracking", "model-context-protocol"]
+keywords = ["mcp", "observability", "audit", "ai-agents", "tracing", "monitoring", "cost-tracking", "model-context-protocol", "sqlite", "instrumentation"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
