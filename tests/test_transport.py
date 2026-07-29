@@ -54,7 +54,7 @@ class TestToolRegistration:
         server = create_fastmcp_server()
         tools = await server.list_tools()
         tool_names = {t.name for t in tools}
-        assert len(tool_names) == 21
+        assert len(tool_names) == 22
 
     @pytest.mark.asyncio
     async def test_expected_tool_names(self):
@@ -69,7 +69,7 @@ class TestToolRegistration:
             "create_alert_rule", "list_alert_rules", "delete_alert_rule",
             "evaluate_alerts", "get_audit_summary",
             "get_tool_health", "get_recent_calls", "export_calls",
-            "export_otlp",
+            "export_otlp", "export_otlp_metrics",
         }
         assert names == expected
 

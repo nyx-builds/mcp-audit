@@ -277,11 +277,29 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Metrics Export ──
+    {
+        "name": "export_otlp_metrics",
+        "description": "Export audit metrics as OpenTelemetry metrics (counters, histograms, gauges). Supports HTTP (send to OTel Collector/Prometheus/Grafana/Datadog) or JSONL file output. Generates tool.call.count, tool.error.count, tool.duration_ms histogram, tool.cost.usd histogram, tool.tokens.input/output counters, session.count gauge, error.rate gauge.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["http", "jsonl"], "default": "jsonl",
+                         "description": "http = POST metrics to OTel collector, jsonl = write OTLP/JSON metrics to file"},
+                "endpoint": {"type": "string", "description": "OTLP/HTTP metrics endpoint (default: http://localhost:4318/v1/metrics). Only for mode=http."},
+                "output_path": {"type": "string", "description": "File path for JSONL output. Only for mode=jsonl."},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
         "description": "Get a high-level summary of all audit data: total calls, sessions, cost, active alerts.",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": { "type": "object", "properties": {} },
     },
 ]
 
@@ -514,6 +532,30 @@ class MCPServer:
             if not output_path:
                 return {"error": "output_path is required for jsonl mode"}
             return export_otlp_jsonl(self.engine, output_path, **kwargs)
+        else:
+            return {"error": f"Unknown mode: {mode}. Use 'http' or 'jsonl'."}
+
+    def _tool_export_otlp_metrics(self, args: dict) -> dict:
+        from ..metrics import export_otlp_metrics_http, export_otlp_metrics_jsonl
+
+        mode = args.get("mode", "jsonl")
+        kwargs = {
+            "session_id": args.get("session_id"),
+            "agent_id": args.get("agent_id"),
+            "tool_name": args.get("tool_name"),
+            "limit": args.get("limit", 10_000),
+        }
+        if mode == "http":
+            return export_otlp_metrics_http(
+                self.engine,
+                endpoint=args.get("endpoint"),
+                **kwargs,
+            )
+        elif mode == "jsonl":
+            output_path = args.get("output_path")
+            if not output_path:
+                return {"error": "output_path is required for jsonl mode"}
+            return export_otlp_metrics_jsonl(self.engine, output_path, **kwargs)
         else:
             return {"error": f"Unknown mode: {mode}. Use 'http' or 'jsonl'."}
 

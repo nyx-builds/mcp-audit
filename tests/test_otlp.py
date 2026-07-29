@@ -595,7 +595,7 @@ class TestMCPServerOTLPTool:
 
     def test_tool_count_increased(self):
         from mcp_audit.server import TOOL_DEFINITIONS
-        assert len(TOOL_DEFINITIONS) == 21  # was 20, now 21
+        assert len(TOOL_DEFINITIONS) == 22  # v0.5: added export_otlp_metrics
 
     def test_server_jsonl_export(self, tmp_path):
         from mcp_audit.server import MCPServer
