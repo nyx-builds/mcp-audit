@@ -14,7 +14,7 @@ from .models import (
 from .tracer import traced_call
 from .transport import create_fastmcp_server, run_stdio
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "AuditEngine",
@@ -43,4 +43,13 @@ def __getattr__(name: str):
     if name == "bind_session":
         from .decorator import bind_session
         return bind_session
+    if name == "OTLPExporter":
+        from .otlp import OTLPExporter
+        return OTLPExporter
+    if name == "export_otlp_http":
+        from .otlp import export_otlp_http
+        return export_otlp_http
+    if name == "export_otlp_jsonl":
+        from .otlp import export_otlp_jsonl
+        return export_otlp_jsonl
     raise AttributeError(f"module 'mcp_audit' has no attribute '{name}'")

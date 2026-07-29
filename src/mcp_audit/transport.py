@@ -2,7 +2,7 @@
 
 This lets agents connect to mcp-audit via stdio transport (the standard MCP
 transport used by Claude Desktop, Cursor, etc.).  We dynamically register all
-17 tool definitions from the ``MCPServer`` class onto a ``FastMCP`` instance.
+tool definitions from the ``MCPServer`` class onto an MCP SDK server instance.
 
 Usage::
 
@@ -26,10 +26,19 @@ import inspect
 import json
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+# The MCP SDK renamed FastMCP → MCPServer in v2.0.0
+# Support both for compatibility
+try:
+    from mcp.server.mcpserver import MCPServer as _McpSdkServer
+except ImportError:
+    try:
+        from mcp.server.fastmcp import FastMCP as _McpSdkServer  # type: ignore[assignment]
+    except ImportError:
+        _McpSdkServer = None  # type: ignore[assignment]
 
 from .engine import AuditEngine
-from .server import MCPServer, TOOL_DEFINITIONS
+from .server import MCPServer as _AuditServer
+from .server import TOOL_DEFINITIONS
 
 # JSON Schema property → Python type mapping
 _JSON_TYPE_MAP: dict[str, type] = {
@@ -70,8 +79,6 @@ def _build_signature(input_schema: dict[str, Any]) -> inspect.Signature:
             )
         )
 
-    # If there are no parameters, add a dummy **kwargs that accepts nothing
-    # so FastMCP doesn't complain.  Actually FastMCP handles zero-param fine.
     return inspect.Signature(parameters=params)
 
 
@@ -79,7 +86,7 @@ def _make_tool_function(
     tool_name: str,
     description: str,
     input_schema: dict[str, Any],
-    inner_server: MCPServer,
+    inner_server: _AuditServer,
 ) -> Any:
     """Create a callable with a proper signature that delegates to inner server."""
     sig = _build_signature(input_schema)
@@ -98,8 +105,8 @@ def _make_tool_function(
 
 def create_fastmcp_server(
     engine: AuditEngine | None = None,
-) -> FastMCP:
-    """Build a :class:`FastMCP` server with all audit tools registered.
+) -> Any:
+    """Build an MCP SDK server with all audit tools registered.
 
     Parameters
     ----------
@@ -109,17 +116,23 @@ def create_fastmcp_server(
 
     Returns
     -------
-    FastMCP
+    MCPServer (SDK v2) or FastMCP (SDK v1)
         A server ready to ``.run(transport="stdio")``.
     """
-    inner = MCPServer(engine=engine)
-    fastmcp = FastMCP(
+    if _McpSdkServer is None:
+        raise ImportError(
+            "MCP SDK is not installed. Install with: pip install mcp"
+        )
+
+    inner = _AuditServer(engine=engine)
+    server = _McpSdkServer(
         name="mcp-audit",
         instructions=(
             "mcp-audit: observability for AI agent tool calls. "
             "Use start_session to begin, record_call after every tool "
             "invocation, and get_stats / get_agent_report for analytics. "
-            "Create alert rules to detect runaway costs or error spikes."
+            "Create alert rules to detect runaway costs or error spikes. "
+            "Export to OpenTelemetry with export_otlp."
         ),
     )
 
@@ -132,13 +145,13 @@ def create_fastmcp_server(
             tool_name, description, input_schema, inner
         )
 
-        fastmcp.add_tool(
+        server.add_tool(
             fn=handler_fn,
             name=tool_name,
             description=description,
         )
 
-    return fastmcp
+    return server
 
 
 def run_stdio() -> None:

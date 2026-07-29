@@ -16,11 +16,11 @@ from mcp_audit.models import CallStatus
 
 class TestCreateFastMCPServer:
     def test_creates_server(self):
-        """create_fastmcp_server returns a FastMCP instance."""
-        from mcp.server.fastmcp import FastMCP
-
+        """create_fastmcp_server returns an MCP SDK server instance."""
         server = create_fastmcp_server()
-        assert isinstance(server, FastMCP)
+        assert server is not None
+        assert hasattr(server, "add_tool")
+        assert hasattr(server, "run")
 
     def test_server_has_correct_name(self):
         server = create_fastmcp_server()
@@ -50,11 +50,11 @@ class TestCreateFastMCPServer:
 class TestToolRegistration:
     @pytest.mark.asyncio
     async def test_all_tools_registered(self):
-        """All tool definitions should be registered on the FastMCP server."""
+        """All tool definitions should be registered on the server."""
         server = create_fastmcp_server()
         tools = await server.list_tools()
         tool_names = {t.name for t in tools}
-        assert len(tool_names) == 20
+        assert len(tool_names) == 21
 
     @pytest.mark.asyncio
     async def test_expected_tool_names(self):
@@ -69,6 +69,7 @@ class TestToolRegistration:
             "create_alert_rule", "list_alert_rules", "delete_alert_rule",
             "evaluate_alerts", "get_audit_summary",
             "get_tool_health", "get_recent_calls", "export_calls",
+            "export_otlp",
         }
         assert names == expected
 
@@ -81,7 +82,7 @@ class TestToolRegistration:
             assert len(tool.description) > 10
 
 
-# ── Tool execution via FastMCP ──────────────────────────────────────────
+# ── Tool execution via MCP SDK ──────────────────────────────────────────
 
 
 class TestToolExecutionViaFastMCP:
@@ -93,7 +94,6 @@ class TestToolExecutionViaFastMCP:
             "agent_id": "test-agent",
             "name": "test-session",
         })
-        # FastMCP returns a list of content blocks; extract text
         text = _extract_text(result)
         data = json.loads(text)
         assert "result" in data
@@ -159,7 +159,7 @@ class TestToolExecutionViaFastMCP:
 
     @pytest.mark.asyncio
     async def test_alert_rule_lifecycle(self):
-        """Full alert rule lifecycle via FastMCP tools."""
+        """Full alert rule lifecycle via MCP tools."""
         server = create_fastmcp_server()
 
         # Create rule
@@ -294,18 +294,15 @@ class TestSharedEngine:
             cost_usd=0.01,
         )
 
-        # The FastMCP server should see this data via the shared engine
-        # (We test by checking the engine directly, since the inner MCPServer
-        # wraps the same engine instance)
+        # The server should see this data via the shared engine
         calls = engine.query_calls()
         assert any(c.tool_name == "direct_call" for c in calls)
 
     def test_multiple_servers_same_engine(self):
-        """Multiple FastMCP servers can share one engine."""
+        """Multiple servers can share one engine."""
         engine = AuditEngine()
         s1 = create_fastmcp_server(engine=engine)
         s2 = create_fastmcp_server(engine=engine)
-        # Both reference the same underlying engine
         assert s1 is not s2
 
 
@@ -315,11 +312,9 @@ class TestSharedEngine:
 class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_missing_required_arg(self):
-        """Calling record_call without session_id should raise ToolError."""
-        from mcp.server.fastmcp.exceptions import ToolError
-
+        """Calling record_call without session_id should raise an error."""
         server = create_fastmcp_server()
-        with pytest.raises(ToolError):
+        with pytest.raises(Exception):
             await server.call_tool("record_call", {"tool_name": "test"})
 
     @pytest.mark.asyncio
@@ -380,10 +375,25 @@ class TestSerialization:
 
 
 def _extract_text(result) -> str:
-    """Extract text from a FastMCP tool call result.
+    """Extract text from an MCP SDK tool call result.
 
-    FastMCP returns a list of content blocks. We concatenate text content.
+    Handles multiple result formats:
+    - SDK v2: CallToolResult with .content list of TextContent
+    - SDK v1: list of content blocks
+    - Plain string
+    - Dict with text
     """
+    # SDK v2: CallToolResult object with .content attribute
+    if hasattr(result, "content") and not isinstance(result, (list, str, dict)):
+        texts = []
+        for block in result.content:
+            if hasattr(block, "text"):
+                texts.append(block.text)
+            elif isinstance(block, dict) and "text" in block:
+                texts.append(block["text"])
+        return "".join(texts)
+
+    # SDK v1: list of content blocks
     if isinstance(result, list):
         texts = []
         for block in result:
@@ -392,8 +402,22 @@ def _extract_text(result) -> str:
             elif isinstance(block, dict) and "text" in block:
                 texts.append(block["text"])
         return "".join(texts)
+
     if isinstance(result, str):
         return result
     if isinstance(result, dict) and "text" in result:
         return result["text"]
-    return json.dumps(result)
+
+    # Try to access .content on any object
+    if hasattr(result, "content"):
+        try:
+            texts = []
+            for block in result.content:
+                if hasattr(block, "text"):
+                    texts.append(block.text)
+            if texts:
+                return "".join(texts)
+        except Exception:
+            pass
+
+    return json.dumps(result, default=str)

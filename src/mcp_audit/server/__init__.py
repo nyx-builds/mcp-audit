@@ -260,6 +260,23 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["format", "output_path"],
         },
     },
+    {
+        "name": "export_otlp",
+        "description": "Export tool calls as OpenTelemetry traces. Supports HTTP (send to OTel Collector/Jaeger/Tempo/Honeycomb) or JSONL file output. Converts each tool call to an OTel span with cost, latency, token, and status attributes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["http", "jsonl"], "default": "jsonl",
+                         "description": "http = POST to OTel collector, jsonl = write OTLP/JSON lines to file"},
+                "endpoint": {"type": "string", "description": "OTLP/HTTP endpoint (default: http://localhost:4318/v1/traces). Only for mode=http."},
+                "output_path": {"type": "string", "description": "File path for JSONL output. Only for mode=jsonl."},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
@@ -475,6 +492,30 @@ class MCPServer:
             return export_calls_csv(self.engine, output_path, **kwargs)
         else:
             return {"error": f"Unknown format: {fmt}. Use 'jsonl' or 'csv'."}
+
+    def _tool_export_otlp(self, args: dict) -> dict:
+        from ..otlp import export_otlp_http, export_otlp_jsonl
+
+        mode = args.get("mode", "jsonl")
+        kwargs = {
+            "session_id": args.get("session_id"),
+            "agent_id": args.get("agent_id"),
+            "tool_name": args.get("tool_name"),
+            "limit": args.get("limit", 10_000),
+        }
+        if mode == "http":
+            return export_otlp_http(
+                self.engine,
+                endpoint=args.get("endpoint"),
+                **kwargs,
+            )
+        elif mode == "jsonl":
+            output_path = args.get("output_path")
+            if not output_path:
+                return {"error": "output_path is required for jsonl mode"}
+            return export_otlp_jsonl(self.engine, output_path, **kwargs)
+        else:
+            return {"error": f"Unknown mode: {mode}. Use 'http' or 'jsonl'."}
 
     # ── Serializers ────────────────────────────────────────────────
 
