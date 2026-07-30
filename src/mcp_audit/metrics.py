@@ -59,7 +59,7 @@ from .models import CallStatus, ToolCall
 # ── Constants ────────────────────────────────────────────────────────
 
 _SERVICE_NAME = "mcp-audit"
-_SERVICE_VERSION = "0.5.0"
+_SERVICE_VERSION = "0.6.0"
 _DEFAULT_RESOURCE_ATTRS: dict[str, str] = {
     "service.name": _SERVICE_NAME,
     "service.version": _SERVICE_VERSION,

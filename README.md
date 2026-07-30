@@ -8,8 +8,8 @@
 <p align="center">
   <a href="https://github.com/nyx-builds/mcp-audit/actions"><img src="https://github.com/nyx-builds/mcp-audit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/MCP-tools-20-green.svg" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/tests-263-passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-tools-23-green.svg" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/tests-516-passing-brightgreen.svg" alt="Tests">
 </p>
 
 ---
@@ -40,6 +40,8 @@ AI agents are increasingly autonomous, calling dozens of tools per session. But 
 - 💾 **SQLite Persistence** — durable storage that survives restarts (drop-in replacement for memory store)
 - 🎯 **Auto-Instrumentation** — `@audit_call` decorator for zero-code tracing of any Python function
 - 📤 **Data Export** — JSONL & CSV export for feeding data to Grafana, Datadog, Splunk, ELK
+- 🔭 **OpenTelemetry (OTLP)** — Export traces and metrics in OTLP format for any OTel-compatible backend
+- 📈 **Prometheus Exposition** — Native Prometheus text format for direct scraping (no OTel collector needed)
 - 🏷️ **Agent Reports** — comprehensive per-agent performance summaries
 - 🪝 **Context Manager** — Python `with` block for automatic call tracing
 
@@ -104,7 +106,7 @@ server = create_fastmcp_server()
 server.run(transport="stdio")
 ```
 
-## MCP Tools (20)
+## MCP Tools (23)
 
 | Tool | Description |
 |------|-------------|
@@ -127,6 +129,9 @@ server.run(transport="stdio")
 | `get_tool_health` | Per-tool health metrics (error rate, p95, cost) |
 | `get_recent_calls` | Get the N most recent tool calls |
 | `export_calls` | Export calls to JSONL or CSV file |
+| `export_otlp` | Export traces in OpenTelemetry (OTLP) format |
+| `export_otlp_metrics` | Export metrics in OpenTelemetry (OTLP) format |
+| `export_prometheus` | Export metrics in Prometheus text exposition format |
 | `get_audit_summary` | High-level dashboard summary |
 
 ## SQLite Persistence
@@ -197,6 +202,81 @@ text = export_to_string(engine, fmt="jsonl", limit=100)
 ```
 
 Or call the `export_calls` MCP tool directly from your agent.
+
+## OpenTelemetry (OTLP) Export
+
+Export traces and metrics in OpenTelemetry format for ingestion by OTel Collectors, Jaeger, Grafana Tempo, Datadog, and more:
+
+```python
+from mcp_audit.otlp import export_otlp_http, export_otlp_jsonl
+from mcp_audit.metrics import export_otlp_metrics_http, build_metrics
+
+# Export traces to a local OTel collector
+export_otlp_http(engine, endpoint="http://localhost:4318/v1/traces")
+
+# Export metrics (counters, histograms, gauges) to OTel collector
+export_otlp_metrics_http(engine, endpoint="http://localhost:4318/v1/metrics")
+
+# Or build OTLP metric dicts for inspection
+metrics = build_metrics(engine)
+```
+
+Or call the `export_otlp` / `export_otlp_metrics` MCP tools from your agent.
+
+## Prometheus Export
+
+Export metrics in **Prometheus text exposition format** for direct scraping by Prometheus, Grafana Agent, VictoriaMetrics, or Datadog Agent — **no OTel Collector required**:
+
+```python
+from mcp_audit.prometheus import build_prometheus_exposition, export_prometheus_file
+
+# Build exposition text (serve on /metrics endpoint)
+text = build_prometheus_exposition(engine)
+
+# Write to file for node_exporter textfile collector
+export_prometheus_file(engine, "/var/lib/node_exporter/mcp_audit.prom")
+```
+
+**Serve as a Prometheus endpoint (Flask example):**
+
+```python
+from flask import Flask
+from mcp_audit.prometheus import build_prometheus_exposition, PROMETHEUS_CONTENT_TYPE
+
+app = Flask(__name__)
+
+@app.route("/metrics")
+def metrics():
+    text = build_prometheus_exposition(engine)
+    return text, 200, {"Content-Type": PROMETHEUS_CONTENT_TYPE}
+```
+
+**Push to a Pushgateway:**
+
+```python
+from mcp_audit.prometheus import export_prometheus_http
+
+export_prometheus_http(engine, endpoint="http://localhost:9091", job_name="mcp-audit")
+```
+
+**Metric families produced:**
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `mcp_audit_tool_calls_total` | Counter | Total tool calls by tool |
+| `mcp_audit_tool_errors_total` | Counter | Error calls by tool |
+| `mcp_audit_tool_duration_ms` | Histogram | Call latency distribution by tool |
+| `mcp_audit_tool_cost_usd` | Histogram | Per-call cost distribution by tool |
+| `mcp_audit_tool_tokens_total` | Counter | Total tokens (input + output) by tool |
+| `mcp_audit_tool_input_tokens` | Counter | Input tokens by tool |
+| `mcp_audit_tool_output_tokens` | Counter | Output tokens by tool |
+| `mcp_audit_sessions` | Gauge | Session count (scope: all/active) |
+| `mcp_audit_error_rate` | Gauge | Overall error rate (%) |
+| `mcp_audit_total_cost_usd` | Gauge | Total cost (USD) |
+| `mcp_audit_avg_duration_ms` | Gauge | Average call duration (ms) |
+| `mcp_audit_avg_cost_usd` | Gauge | Average cost per call (USD) |
+
+Or call the `export_prometheus` MCP tool from your agent.
 
 ## Alert Rules
 

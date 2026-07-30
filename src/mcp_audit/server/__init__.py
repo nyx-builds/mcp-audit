@@ -295,6 +295,25 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Prometheus Export ──
+    {
+        "name": "export_prometheus",
+        "description": "Export audit metrics in Prometheus text exposition format. Modes: 'text' (return exposition string), 'file' (write to file), 'push' (push to Prometheus Pushgateway). Generates mcp_audit_tool_calls_total, mcp_audit_tool_errors_total, mcp_audit_tool_duration_ms histogram, mcp_audit_tool_cost_usd histogram, mcp_audit_tool_tokens_total counter, mcp_audit_sessions gauge, mcp_audit_error_rate gauge, mcp_audit_total_cost_usd gauge. No OTel Collector required — Prometheus scrapes directly.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["text", "file", "push"], "default": "text",
+                         "description": "text = return exposition string, file = write to file, push = POST to Pushgateway"},
+                "output_path": {"type": "string", "description": "File path. Only for mode=file."},
+                "endpoint": {"type": "string", "description": "Pushgateway URL (e.g. http://localhost:9091). Only for mode=push. Falls back to MCP_AUDIT_PUSHGATEWAY env var."},
+                "job_name": {"type": "string", "default": "mcp-audit", "description": "Prometheus job label. Only for mode=push."},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
@@ -558,6 +577,48 @@ class MCPServer:
             return export_otlp_metrics_jsonl(self.engine, output_path, **kwargs)
         else:
             return {"error": f"Unknown mode: {mode}. Use 'http' or 'jsonl'."}
+
+    def _tool_export_prometheus(self, args: dict) -> dict:
+        from ..prometheus import (
+            build_prometheus_exposition,
+            export_prometheus_file,
+            export_prometheus_http,
+        )
+
+        mode = args.get("mode", "text")
+        kwargs = {
+            "session_id": args.get("session_id"),
+            "agent_id": args.get("agent_id"),
+            "tool_name": args.get("tool_name"),
+            "limit": args.get("limit", 10_000),
+        }
+        if mode == "text":
+            text = build_prometheus_exposition(self.engine, **kwargs)
+            metric_lines = sum(
+                1 for line in text.splitlines()
+                if line and not line.startswith("#")
+            )
+            return {
+                "status": "ok",
+                "format": "prometheus_text_exposition",
+                "metric_lines": metric_lines,
+                "bytes": len(text.encode("utf-8")),
+                "exposition": text,
+            }
+        elif mode == "file":
+            output_path = args.get("output_path")
+            if not output_path:
+                return {"error": "output_path is required for file mode"}
+            return export_prometheus_file(self.engine, output_path, **kwargs)
+        elif mode == "push":
+            return export_prometheus_http(
+                self.engine,
+                endpoint=args.get("endpoint"),
+                job_name=args.get("job_name", "mcp-audit"),
+                **kwargs,
+            )
+        else:
+            return {"error": f"Unknown mode: {mode}. Use 'text', 'file', or 'push'."}
 
     # ── Serializers ────────────────────────────────────────────────
 

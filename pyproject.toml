@@ -1,14 +1,14 @@
 [project]
 name = "mcp-audit"
-version = "0.5.0"
-description = "Audit, trace, and observe MCP tool calls. The observability MCP server for AI agents — 22 tools for logging calls, tracking costs, measuring performance, alerting, SQLite persistence, auto-instrumentation, data export, and OpenTelemetry (OTLP) traces + metrics integration."
+version = "0.6.0"
+description = "Audit, trace, and observe MCP tool calls. The observability MCP server for AI agents — 23 tools for logging calls, tracking costs, measuring performance, alerting, SQLite persistence, auto-instrumentation, data export, OpenTelemetry (OTLP) traces + metrics, and Prometheus exposition integration."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
 authors = [
     { name = "Nyx", email = "nyx@nyx-builds.github.io" },
 ]
-keywords = ["mcp", "observability", "audit", "ai-agents", "tracing", "monitoring", "cost-tracking", "model-context-protocol", "sqlite", "instrumentation", "opentelemetry", "otlp", "distributed-tracing"]
+keywords = ["mcp", "observability", "audit", "ai-agents", "tracing", "monitoring", "cost-tracking", "model-context-protocol", "sqlite", "instrumentation", "opentelemetry", "otlp", "distributed-tracing", "prometheus", "grafana"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
