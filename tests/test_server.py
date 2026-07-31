@@ -16,7 +16,7 @@ def server():
 
 class TestToolDefinitions:
     def test_tool_count(self):
-        assert len(TOOL_DEFINITIONS) == 23
+        assert len(TOOL_DEFINITIONS) == 24
 
     def test_all_have_required_fields(self):
         for tool in TOOL_DEFINITIONS:
@@ -59,11 +59,11 @@ class TestToolDefinitions:
 class TestServerBasic:
     def test_list_tools(self, server):
         tools = server.list_tools()
-        assert len(tools) == 23
+        assert len(tools) == 24
         assert all("name" in t for t in tools)
 
     def test_tool_count_property(self, server):
-        assert server.tool_count == 23
+        assert server.tool_count == 24
 
     def test_unknown_tool(self, server):
         result = server.call_tool("nonexistent", {})

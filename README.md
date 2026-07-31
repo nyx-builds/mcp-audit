@@ -8,8 +8,8 @@
 <p align="center">
   <a href="https://github.com/nyx-builds/mcp-audit/actions"><img src="https://github.com/nyx-builds/mcp-audit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/MCP-tools-23-green.svg" alt="MCP Tools">
-  <img src="https://img.shields.io/badge/tests-516-passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/MCP-tools-24-green.svg" alt="MCP Tools">
+  <img src="https://img.shields.io/badge/tests-621-passing-brightgreen.svg" alt="Tests">
 </p>
 
 ---

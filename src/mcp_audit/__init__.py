@@ -14,7 +14,7 @@ from .models import (
 from .tracer import traced_call
 from .transport import create_fastmcp_server, run_stdio
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 __all__ = [
     "AuditEngine",
@@ -76,4 +76,19 @@ def __getattr__(name: str):
     if name == "PrometheusExporter":
         from .prometheus import PrometheusExporter
         return PrometheusExporter
+    if name == "generate_dashboard_json":
+        from .grafana import generate_dashboard_json
+        return generate_dashboard_json
+    if name == "generate_dashboard_dict":
+        from .grafana import generate_dashboard_dict
+        return generate_dashboard_dict
+    if name == "save_dashboard":
+        from .grafana import save_dashboard
+        return save_dashboard
+    if name == "export_dashboard_http":
+        from .grafana import export_dashboard_http
+        return export_dashboard_http
+    if name == "GrafanaDashboardExporter":
+        from .grafana import GrafanaDashboardExporter
+        return GrafanaDashboardExporter
     raise AttributeError(f"module 'mcp_audit' has no attribute '{name}'")

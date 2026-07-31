@@ -1,6 +1,6 @@
 [project]
 name = "mcp-audit"
-version = "0.6.0"
+version = "0.7.0"
 description = "Audit, trace, and observe MCP tool calls. The observability MCP server for AI agents — 23 tools for logging calls, tracking costs, measuring performance, alerting, SQLite persistence, auto-instrumentation, data export, OpenTelemetry (OTLP) traces + metrics, and Prometheus exposition integration."
 readme = "README.md"
 license = { text = "MIT" }

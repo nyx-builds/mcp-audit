@@ -314,6 +314,23 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Grafana Dashboard ──
+    {
+        "name": "export_grafana_dashboard",
+        "description": "Generate a Grafana dashboard JSON for visualizing mcp_audit Prometheus metrics. Modes: 'text' (return JSON string), 'file' (write to file), 'import' (push to Grafana via HTTP API). Includes 13 panels: overview stats (calls, errors, cost, sessions), call/error timeseries, latency heatmap + percentiles (p50/p95/p99), cost by tool bargauge + cost heatmap, token usage trends, and per-tool breakdown table. Import the generated JSON via Grafana's Import Dashboard feature.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["text", "file", "import"], "default": "text",
+                         "description": "text = return dashboard JSON, file = write to file, import = POST to Grafana HTTP API"},
+                "output_path": {"type": "string", "description": "File path. Only for mode=file."},
+                "datasource": {"type": "string", "default": "default", "description": "Grafana Prometheus datasource UID/name. Use 'default' for the default datasource."},
+                "title": {"type": "string", "default": "MCP Audit — Agent Observability", "description": "Dashboard title."},
+                "grafana_url": {"type": "string", "description": "Grafana instance URL (e.g. http://localhost:3000). Only for mode=import. Falls back to MCP_AUDIT_GRAFANA_URL env var."},
+                "api_key": {"type": "string", "description": "Grafana API key. Only for mode=import. Falls back to MCP_AUDIT_GRAFANA_KEY env var."},
+            },
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
@@ -619,6 +636,50 @@ class MCPServer:
             )
         else:
             return {"error": f"Unknown mode: {mode}. Use 'text', 'file', or 'push'."}
+
+    def _tool_export_grafana_dashboard(self, args: dict) -> dict:
+        from ..grafana import (
+            export_dashboard_http,
+            generate_dashboard_json,
+            save_dashboard,
+        )
+
+        mode = args.get("mode", "text")
+        datasource = args.get("datasource", "default")
+        title = args.get("title", "MCP Audit — Agent Observability")
+
+        if mode == "text":
+            dashboard_json = generate_dashboard_json(
+                title=title,
+                datasource=datasource,
+            )
+            import json as _json
+            data = _json.loads(dashboard_json)
+            return {
+                "status": "ok",
+                "format": "grafana_dashboard_json",
+                "panels": len(data.get("panels", [])),
+                "bytes": len(dashboard_json.encode("utf-8")),
+                "dashboard": dashboard_json,
+            }
+        elif mode == "file":
+            output_path = args.get("output_path")
+            if not output_path:
+                return {"error": "output_path is required for file mode"}
+            return save_dashboard(
+                output_path,
+                title=title,
+                datasource=datasource,
+            )
+        elif mode == "import":
+            return export_dashboard_http(
+                grafana_url=args.get("grafana_url"),
+                api_key=args.get("api_key"),
+                title=title,
+                datasource=datasource,
+            )
+        else:
+            return {"error": f"Unknown mode: {mode}. Use 'text', 'file', or 'import'."}
 
     # ── Serializers ────────────────────────────────────────────────
 

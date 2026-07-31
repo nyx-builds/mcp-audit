@@ -595,7 +595,7 @@ class TestMCPServerOTLPTool:
 
     def test_tool_count_increased(self):
         from mcp_audit.server import TOOL_DEFINITIONS
-        assert len(TOOL_DEFINITIONS) == 23  # v0.6: added export_prometheus
+        assert len(TOOL_DEFINITIONS) == 24  # v0.7: added export_grafana_dashboard
 
     def test_server_jsonl_export(self, tmp_path):
         from mcp_audit.server import MCPServer
