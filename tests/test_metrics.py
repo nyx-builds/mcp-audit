@@ -556,7 +556,7 @@ class TestMCPServerMetricsTool:
     def test_tool_count_increased(self):
         from mcp_audit.server import TOOL_DEFINITIONS
         # v0.6 should have 23 tools (added export_prometheus)
-        assert len(TOOL_DEFINITIONS) == 24  # v0.7: added export_grafana_dashboard
+        assert len(TOOL_DEFINITIONS) == 28  # v0.8: added 4 time-series analytics tools
 
     def test_tool_handler_jsonl_mode(self, populated_engine, tmp_path):
         from mcp_audit.server import MCPServer

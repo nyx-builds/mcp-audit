@@ -106,7 +106,7 @@ server = create_fastmcp_server()
 server.run(transport="stdio")
 ```
 
-## MCP Tools (23)
+## MCP Tools (28)
 
 | Tool | Description |
 |------|-------------|
@@ -132,7 +132,78 @@ server.run(transport="stdio")
 | `export_otlp` | Export traces in OpenTelemetry (OTLP) format |
 | `export_otlp_metrics` | Export metrics in OpenTelemetry (OTLP) format |
 | `export_prometheus` | Export metrics in Prometheus text exposition format |
+| `export_grafana_dashboard` | Generate importable Grafana dashboard JSON |
+| `get_timeseries` | Time-bucketed call metrics for charting |
+| `detect_anomalies` | Statistical anomaly detection (z-score/IQR/EWMA) |
+| `analyze_trends` | Trend direction, slope, and volatility analysis |
+| `get_heatmap` | Tool × time-bucket heatmap matrix |
 | `get_audit_summary` | High-level dashboard summary |
+
+## Time-Series Analytics & Anomaly Detection
+
+### Time-Series Bucketing
+
+Build time-bucketed views of call metrics for charting and analysis:
+
+```python
+from mcp_audit.engine import AuditEngine
+from mcp_audit.timeseries import build_timeseries
+
+engine = AuditEngine()
+# ... record calls ...
+
+ts = build_timeseries(engine, window="5m", metric="error_rate")
+# Returns buckets with: call_count, error_rate, p50/p95/p99 latency,
+# total_cost_usd, avg_cost_usd, total_tokens, unique_tools, unique_sessions
+```
+
+Windows: `1m`, `5m`, `15m`, `1h`, `1d`.
+
+### Anomaly Detection
+
+Detect statistical anomalies in your tool call metrics using three methods:
+
+- **Z-score** — flags data points > N standard deviations from the mean. Best for datasets with 8+ buckets.
+- **IQR** — flags points outside the interquartile range. Robust for smaller datasets (4+ buckets).
+- **EWMA** — uses exponentially-weighted moving average baseline. Detects gradual drift.
+
+```python
+from mcp_audit.timeseries import detect_anomalies
+
+result = detect_anomalies(
+    engine,
+    window="5m",
+    metrics=["error_rate", "p95_latency_ms", "total_cost_usd"],
+    method="auto",       # auto-selects based on sample size
+    sensitivity="normal", # high / normal / low
+)
+# result["anomalies"] is sorted by severity (critical → low)
+```
+
+Each anomaly includes: `bucket_index`, `value`, `zscore`, `direction` (spike/drop), `severity` (critical/high/medium/low), `method`, and `timestamp`.
+
+### Trend Analysis
+
+Understand whether metrics are improving, degrading, or stable over time:
+
+```python
+from mcp_audit.timeseries import analyze_trends
+
+result = analyze_trends(engine, window="1h")
+# Each metric returns: direction (increasing/decreasing/stable),
+# slope (change per bucket), pct_change, volatility_cv, volatility_label
+```
+
+### Heatmap
+
+Visualize tool activity across time buckets — which tools are hot when:
+
+```python
+from mcp_audit.timeseries import build_heatmap
+
+result = build_heatmap(engine, window="1h", metric="call_count")
+# Returns: tools list, timestamps list, and a matrix[tool][bucket] of values
+```
 
 ## SQLite Persistence
 

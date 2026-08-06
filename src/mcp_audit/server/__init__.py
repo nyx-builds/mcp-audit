@@ -331,6 +331,76 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             },
         },
     },
+    # ── Time-Series Analytics ──
+    {
+        "name": "get_timeseries",
+        "description": "Build a time-series of call metrics bucketed by time window (1m, 5m, 15m, 1h, 1d). Each bucket contains call count, error rate, p50/p95/p99 latency, cost, and token metrics. Optionally extract a single metric for charting.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window": {"type": "string", "enum": ["1m", "5m", "15m", "1h", "1d"], "default": "5m",
+                           "description": "Time bucket size"},
+                "metric": {"type": "string", "enum": ["call_count", "error_rate", "timeout_rate", "avg_latency_ms", "p95_latency_ms", "p99_latency_ms", "total_cost_usd", "avg_cost_usd", "total_tokens", "avg_tokens_per_call"],
+                           "description": "Optional: extract a single metric for each bucket (adds a 'value' key)"},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
+    {
+        "name": "detect_anomalies",
+        "description": "Detect anomalous time buckets using statistical methods (z-score, IQR, or EWMA). Analyzes metrics like error rate, latency, and cost for spikes or drops. Supports auto method selection based on sample size, and configurable sensitivity (high/normal/low).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window": {"type": "string", "enum": ["1m", "5m", "15m", "1h", "1d"], "default": "5m"},
+                "metrics": {"type": "array", "items": {"type": "string", "enum": ["call_count", "error_rate", "timeout_rate", "avg_latency_ms", "p95_latency_ms", "p99_latency_ms", "total_cost_usd", "avg_cost_usd", "total_tokens"]},
+                            "description": "Metrics to analyze (default: error_rate, p95_latency_ms, total_cost_usd)"},
+                "method": {"type": "string", "enum": ["auto", "zscore", "iqr", "ewma"], "default": "auto",
+                           "description": "Detection method. auto picks based on sample size."},
+                "sensitivity": {"type": "string", "enum": ["high", "normal", "low"], "default": "normal",
+                                "description": "Sensitivity level. high = more anomalies, low = fewer false positives."},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
+    {
+        "name": "analyze_trends",
+        "description": "Analyze trends in call metrics over time. Computes linear regression slope, percentage change, and volatility for each metric. Classifies direction as increasing, decreasing, or stable.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window": {"type": "string", "enum": ["1m", "5m", "15m", "1h", "1d"], "default": "1h",
+                           "description": "Time bucket size for trend analysis"},
+                "metrics": {"type": "array", "items": {"type": "string", "enum": ["call_count", "error_rate", "timeout_rate", "avg_latency_ms", "p95_latency_ms", "p99_latency_ms", "total_cost_usd", "avg_cost_usd", "total_tokens"]},
+                            "description": "Metrics to analyze (default: error_rate, p95_latency_ms, total_cost_usd, call_count)"},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "tool_name": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
+    {
+        "name": "get_heatmap",
+        "description": "Build a tool × time-bucket heatmap matrix. Useful for visualizing which tools are hot at which times. Returns tools list, timestamps list, and a matrix of metric values.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window": {"type": "string", "enum": ["1m", "5m", "15m", "1h", "1d"], "default": "1h"},
+                "metric": {"type": "string", "enum": ["call_count", "error_rate", "timeout_rate", "avg_latency_ms", "p95_latency_ms", "p99_latency_ms", "total_cost_usd", "avg_cost_usd", "total_tokens"],
+                           "default": "call_count", "description": "Metric to visualize in the heatmap"},
+                "session_id": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "limit": {"type": "integer", "default": 10000},
+            },
+        },
+    },
     # ── Utility ──
     {
         "name": "get_audit_summary",
@@ -680,6 +750,61 @@ class MCPServer:
             )
         else:
             return {"error": f"Unknown mode: {mode}. Use 'text', 'file', or 'import'."}
+
+    # ── Time-Series Analytics Handlers ──────────────────────────────
+
+    def _tool_get_timeseries(self, args: dict) -> dict:
+        from ..timeseries import build_timeseries
+
+        return build_timeseries(
+            self.engine,
+            window=args.get("window", "5m"),
+            metric=args.get("metric"),
+            session_id=args.get("session_id"),
+            agent_id=args.get("agent_id"),
+            tool_name=args.get("tool_name"),
+            limit=args.get("limit", 10_000),
+        )
+
+    def _tool_detect_anomalies(self, args: dict) -> dict:
+        from ..timeseries import detect_anomalies
+
+        return detect_anomalies(
+            self.engine,
+            window=args.get("window", "5m"),
+            metrics=args.get("metrics"),
+            method=args.get("method", "auto"),
+            sensitivity=args.get("sensitivity", "normal"),
+            session_id=args.get("session_id"),
+            agent_id=args.get("agent_id"),
+            tool_name=args.get("tool_name"),
+            limit=args.get("limit", 10_000),
+        )
+
+    def _tool_analyze_trends(self, args: dict) -> dict:
+        from ..timeseries import analyze_trends
+
+        return analyze_trends(
+            self.engine,
+            window=args.get("window", "1h"),
+            metrics=args.get("metrics"),
+            session_id=args.get("session_id"),
+            agent_id=args.get("agent_id"),
+            tool_name=args.get("tool_name"),
+            limit=args.get("limit", 10_000),
+        )
+
+    def _tool_get_heatmap(self, args: dict) -> dict:
+        from ..timeseries import build_heatmap
+
+        return build_heatmap(
+            self.engine,
+            window=args.get("window", "1h"),
+            metric=args.get("metric", "call_count"),
+            session_id=args.get("session_id"),
+            agent_id=args.get("agent_id"),
+            limit=args.get("limit", 10_000),
+        )
 
     # ── Serializers ────────────────────────────────────────────────
 
